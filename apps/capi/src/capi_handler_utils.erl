@@ -1,6 +1,7 @@
 -module(capi_handler_utils).
 
 -include_lib("damsel/include/dmsl_payment_processing_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
 -export([general_error/2]).
 -export([logic_error/2]).
@@ -29,6 +30,7 @@
 
 -export([unwrap_payment_session/1]).
 -export([wrap_payment_session/2]).
+
 -export([get_invoice_by_id/2]).
 -export([get_payment_by_id/3]).
 -export([get_refund_by_id/4]).
