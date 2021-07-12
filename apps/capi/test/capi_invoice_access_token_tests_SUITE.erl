@@ -1,6 +1,7 @@
 -module(capi_invoice_access_token_tests_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
+-include_lib("stdlib/include/assert.hrl").
 
 -include_lib("damsel/include/dmsl_payment_processing_thrift.hrl").
 -include_lib("damsel/include/dmsl_payment_processing_errors_thrift.hrl").
@@ -254,7 +255,24 @@ get_invoice_payment_methods_ok_test(Config) ->
         ?STRING,
         Config
     ),
-    {ok, _} = capi_client_invoices:get_invoice_payment_methods(?config(context, Config), ?STRING).
+    {ok, Methods} = capi_client_invoices:get_invoice_payment_methods(
+        ?config(context, Config), ?STRING
+    ),
+    [ProviderMethod] = lists:filter(
+        fun(Method) ->
+            maps:get(<<"tokenProviderData">>, Method, undefined) /= undefined
+        end,
+        Methods
+    ),
+    ?assertMatch(
+        #{
+            <<"merchantID">> := <<"test:", _/binary>>,
+            <<"merchantName">> := ?STRING,
+            <<"orderID">> := ?STRING,
+            <<"realm">> := <<"test">>
+        },
+        maps:get(<<"tokenProviderData">>, ProviderMethod)
+    ).
 
 -spec create_payment_ok_test(config()) -> _.
 create_payment_ok_test(Config) ->
