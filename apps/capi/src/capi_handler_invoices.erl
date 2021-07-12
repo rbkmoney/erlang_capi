@@ -80,13 +80,10 @@ prepare('CreateInvoiceAccessToken' = OperationID, Req, Context) ->
     Process = fun() ->
         capi_handler:respond_if_undefined(ResultInvoice, general_error(404, <<"Invoice not found">>)),
         Invoice = ResultInvoice#payproc_Invoice.invoice,
-        {ok, Realm} = get_realm_by_invoice(Invoice, Context),
-        ExtraProperties = maps:merge(capi_handler_utils:get_extra_properties(Context), #{
-            % Тип и индентифкатор сущности для привязки в createPaymentResource
-            <<"token_link">> => #{<<"invoice_id">> => InvoiceID},
-            % Для передачи в PaymentToolProvider:Unwrap
-            <<"realm">> => Realm
-        }),
+        ExtraProperties = maps:merge(
+            capi_handler_utils:get_extra_properties(Context),
+            construct_token_link(Invoice, Context)
+        ),
         PartyID = Invoice#domain_Invoice.owner_id,
         Response = capi_handler_utils:issue_access_token(PartyID, {invoice, InvoiceID}, ExtraProperties),
         {ok, {201, #{}, Response}}
@@ -489,11 +486,19 @@ construct_token_provider_data(Invoice, Context) ->
         <<"realm">> => RealmMode
     }.
 
-get_realm_by_invoice(Invoice, Context) ->
+construct_token_link(Invoice, Context) ->
+    InvoiceID = Invoice#domain_Invoice.id,
     PartyID = Invoice#domain_Invoice.owner_id,
     ShopID = Invoice#domain_Invoice.shop_id,
     {ok, Shop} = capi_party:get_shop(PartyID, ShopID, Context),
-    capi_handler_utils:get_realm_by_contract(PartyID, Shop#domain_Shop.contract_id, Context).
+    {ok, Realm} = capi_handler_utils:get_realm_by_contract(PartyID, Shop#domain_Shop.contract_id, Context),
+    RealmMode = genlib:to_binary(Realm),
+    #{
+        % Тип и индентифкатор сущности для привязки в createPaymentResource
+        <<"token_link">> => #{<<"invoice_id">> => InvoiceID},
+        % Для передачи в PaymentToolProvider:Unwrap
+        <<"realm">> => RealmMode
+    }.
 
 get_invoice_by_external_id(ExternalID, #{woody_context := WoodyContext} = Context) ->
     PartyID = capi_handler_utils:get_party_id(Context),
