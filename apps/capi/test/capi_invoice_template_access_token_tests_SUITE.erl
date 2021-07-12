@@ -178,7 +178,9 @@ get_invoice_payment_methods_by_tpl_id_ok_test(Config) ->
             end},
             {party_management, fun
                 ('GetRevision', _) -> {ok, ?INTEGER};
-                ('Checkout', _) -> {ok, ?PARTY}
+                ('Checkout', _) -> {ok, ?PARTY};
+                ('GetShop', _) -> {ok, ?SHOP};
+                ('GetContract', _) -> {ok, ?CONTRACT}
             end}
         ],
         Config

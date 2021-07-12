@@ -16,16 +16,14 @@
 -type payment_institution() :: dmsl_domain_thrift:'PaymentInstitutionObject'().
 -type realm() :: dmsl_domain_thrift:'PaymentInstitutionRealm'().
 
--spec get_pi_realm(payment_institution_ref(), processing_context()) -> {ok, realm()} | {error, not_found}.
+-export_type([realm/0]).
+
+-spec get_pi_realm(payment_institution_ref(), processing_context()) -> {ok, realm()}.
 get_pi_realm(Ref, Context) ->
-    case get({payment_institution, Ref}, Context) of
-        {ok, PiObject} ->
-            #domain_PaymentInstitutionObject{data = Pi} = PiObject,
-            #domain_PaymentInstitution{realm = Realm} = Pi,
-            {ok, Realm};
-        Error ->
-            Error
-    end.
+    {ok, PiObject} = get({payment_institution, Ref}, Context),
+    #domain_PaymentInstitutionObject{data = Pi} = PiObject,
+    #domain_PaymentInstitution{realm = Realm} = Pi,
+    {ok, Realm}.
 
 -spec get_payment_institutions(processing_context()) -> {ok, [payment_institution()]}.
 get_payment_institutions(Context) ->

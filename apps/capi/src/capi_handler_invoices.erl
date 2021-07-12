@@ -270,9 +270,7 @@ prepare('GetInvoicePaymentMethods' = OperationID, Req, Context) ->
         case capi_handler_decoder_invoicing:construct_payment_methods(invoicing, Args, Context) of
             {ok, PaymentMethods0} when is_list(PaymentMethods0) ->
                 PaymentMethods1 = capi_utils:deduplicate_payment_methods(PaymentMethods0),
-                #'payproc_Invoice'{invoice = Invoice} = ResultInvoice,
-                TokenProviderData = construct_token_provider_data(Invoice, Context),
-                PaymentMethods = decode_token_provider_data(PaymentMethods1, TokenProviderData),
+                PaymentMethods = decode_token_provider_data(PaymentMethods1, ResultInvoice, Context),
                 {ok, {200, #{}, PaymentMethods}};
             {exception, Exception} ->
                 case Exception of
@@ -469,16 +467,10 @@ decode_refund_for_event(#domain_InvoicePaymentRefund{cash = undefined} = Refund,
         capi_handler_utils:get_payment_by_id(InvoiceID, PaymentID, Context),
     capi_handler_decoder_invoicing:decode_refund(Refund#domain_InvoicePaymentRefund{cash = Cash}, Context).
 
-decode_token_provider_data(PaymentMethods, TokenProviderData) ->
-    lists:map(
-        fun
-            (#{<<"tokenProviders">> := _Providers} = PaymentMethod) ->
-                PaymentMethod#{<<"tokenProviderData">> => TokenProviderData};
-            (PaymentMethod) ->
-                PaymentMethod
-        end,
-        PaymentMethods
-    ).
+decode_token_provider_data(PaymentMethods, PayprocInvoice, Context) ->
+    #payproc_Invoice{invoice = Invoice} = PayprocInvoice,
+    TokenProviderData = construct_token_provider_data(Invoice, Context),
+    capi_handler_decoder_invoicing:decode_token_provider_data(PaymentMethods, TokenProviderData).
 
 construct_token_provider_data(Invoice, Context) ->
     InvoiceID = Invoice#domain_Invoice.id,
@@ -487,30 +479,21 @@ construct_token_provider_data(Invoice, Context) ->
     {ok, Shop} = capi_party:get_shop(PartyID, ShopID, Context),
     ShopName = Shop#domain_Shop.details#domain_ShopDetails.name,
     ContractID = Shop#domain_Shop.contract_id,
-    {ok, Realm} = get_realm_by_contract(PartyID, ContractID, Context),
+    {ok, Realm} = capi_handler_utils:get_realm_by_contract(PartyID, ContractID, Context),
     RealmMode = genlib:to_binary(Realm),
+    MerchantID = capi_handler_utils:make_merchant_id(RealmMode, PartyID, ShopID),
     #{
-        <<"merchantID">> => make_merchant_id(RealmMode, PartyID, ShopID),
+        <<"merchantID">> => MerchantID,
         <<"merchantName">> => ShopName,
         <<"orderID">> => InvoiceID,
         <<"realm">> => RealmMode
     }.
 
--spec make_merchant_id(binary(), binary(), binary()) -> binary().
-make_merchant_id(RealmMode, PartyID, ShopID) ->
-    Bin16 = erlang:integer_to_binary(erlang:phash2(PartyID), 16),
-    <<RealmMode/binary, $:, Bin16/binary, $:, ShopID/binary>>.
-
 get_realm_by_invoice(Invoice, Context) ->
     PartyID = Invoice#domain_Invoice.owner_id,
     ShopID = Invoice#domain_Invoice.shop_id,
     {ok, Shop} = capi_party:get_shop(PartyID, ShopID, Context),
-    get_realm_by_contract(PartyID, Shop#domain_Shop.contract_id, Context).
-
-get_realm_by_contract(PartyID, ContractID, Context) ->
-    {ok, Contract} = capi_party:get_contract(PartyID, ContractID, Context),
-    #domain_Contract{payment_institution = PiRef} = Contract,
-    capi_domain:get_pi_realm(PiRef, Context).
+    capi_handler_utils:get_realm_by_contract(PartyID, Shop#domain_Shop.contract_id, Context).
 
 get_invoice_by_external_id(ExternalID, #{woody_context := WoodyContext} = Context) ->
     PartyID = capi_handler_utils:get_party_id(Context),
